@@ -63,19 +63,23 @@ int CAN::mode(Mode mode) {
     return can_mode(&_can, (CanMode)mode);
 }
 
-    void CAN::attach(void (*fptr)(void), IrqType type) {
-        if (fptr) {
-            _irq[(CanIrqType)type].attach(fptr);
-            can_irq_set(&_can, (CanIrqType)type, 1);
-        } else {
-            can_irq_set(&_can, (CanIrqType)type, 0);
-        }
-    }
+int CAN::filter(int mailbox, unsigned int id, unsigned int mask) {
+    return can_filter(&_can, mailbox, id, mask);
+}
 
-    void CAN::_irq_handler(uint32_t id, CanIrqType type) {
-        CAN *handler = (CAN*)id;
-        handler->_irq[type].call();
+void CAN::attach(void (*fptr)(void), IrqType type) {
+    if (fptr) {
+        _irq[(CanIrqType)type].attach(fptr);
+        can_irq_set(&_can, (CanIrqType)type, 1);
+    } else {
+        can_irq_set(&_can, (CanIrqType)type, 0);
     }
+}
+
+void CAN::_irq_handler(uint32_t id, CanIrqType type) {
+    CAN *handler = (CAN*)id;
+    handler->_irq[type].call();
+}
 
 } // namespace mbed
 

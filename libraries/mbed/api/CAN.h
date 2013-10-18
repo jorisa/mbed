@@ -169,6 +169,18 @@ public:
      */
     int mode(Mode mode);
     
+    /** Change CAN operation to the specified mode
+     *
+     *  @param box message object
+     *  @param id the id to filter on
+     *  @param mask the mask
+     *
+     *  @returns
+     *    0 if mode change failed or unsupported,
+     *    1 if mode change was successful     
+     */
+    int filter(int mailbox, unsigned int id, unsigned int mask);    
+    
     /** Returns number of read errors to detect read overflow errors.
      */
     unsigned char rderror();

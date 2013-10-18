@@ -48,6 +48,38 @@ int can_mode(can_t *obj, CanMode mode) {
     return 0; // not implemented
 }
 
+int can_filter(can_t *obj, int32_t box, uint32_t id, uint32_t mask) {
+    uint16_t msgnum = box;
+    CANFormat format = CANStandard;
+    
+    if(format == CANExtended)    {
+        // Mark message valid, Direction = TX, Extended Frame, Set Identifier and mask everything
+        LPC_CAN->IF1_ARB1 = BFN_PREP(id, CANIFn_ARB1_ID);
+        LPC_CAN->IF1_ARB2 = CANIFn_ARB2_MSGVAL | CANIFn_ARB2_XTD | BFN_PREP(id >> 16, CANIFn_ARB2_ID);
+        LPC_CAN->IF1_MSK1 = BFN_PREP(mask, CANIFn_MSK1_MSK);
+        LPC_CAN->IF1_MSK2 = CANIFn_MSK2_MXTD | CANIFn_MSK2_MDIR | BFN_PREP(mask >> 16, CANIFn_MSK2_MSK);
+    }
+    else {
+        // Mark message valid, Direction = TX, Set Identifier and mask everything
+        LPC_CAN->IF1_ARB2 = CANIFn_ARB2_MSGVAL | BFN_PREP(id << 2, CANIFn_ARB2_ID);
+        LPC_CAN->IF1_MSK2 = CANIFn_MSK2_MDIR | BFN_PREP(mask << 2, CANIFn_MSK2_MSK);
+    }
+    
+    // Use mask, single message object and set DLC
+    LPC_CAN->IF1_MCTRL = CANIFn_MCTRL_UMASK | CANIFn_MCTRL_EOB | CANIFn_MCTRL_RXIE | BFN_PREP(DLC_MAX, CANIFn_MCTRL_DLC);
+
+    // Transfer all fields to message object
+    LPC_CAN->IF1_CMDMSK = CANIFn_CMDMSK_WR | CANIFn_CMDMSK_MASK | CANIFn_CMDMSK_ARB | CANIFn_CMDMSK_CTRL;
+    
+    // Start Transfer to given message number
+    LPC_CAN->IF1_CMDREQ = BFN_PREP(msgnum, CANIFn_CMDREQ_MN);
+    
+    // Wait until transfer to message ram complete - TODO: maybe not block??
+    while( LPC_CAN->IF1_CMDREQ & CANIFn_CMDREQ_BUSY );    
+    
+    return 0; // not implemented
+}
+
 static inline void can_irq() {
     irq_handler(can_irq_id, IRQ_RX);
 }
