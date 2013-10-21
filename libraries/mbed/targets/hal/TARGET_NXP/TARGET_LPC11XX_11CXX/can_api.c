@@ -48,36 +48,49 @@ int can_mode(can_t *obj, CanMode mode) {
     return 0; // not implemented
 }
 
-int can_filter(can_t *obj, int32_t box, uint32_t id, uint32_t mask) {
-    uint16_t msgnum = box;
-    CANFormat format = CANStandard;
-    
-    if(format == CANExtended)    {
-        // Mark message valid, Direction = TX, Extended Frame, Set Identifier and mask everything
-        LPC_CAN->IF1_ARB1 = BFN_PREP(id, CANIFn_ARB1_ID);
-        LPC_CAN->IF1_ARB2 = CANIFn_ARB2_MSGVAL | CANIFn_ARB2_XTD | BFN_PREP(id >> 16, CANIFn_ARB2_ID);
-        LPC_CAN->IF1_MSK1 = BFN_PREP(mask, CANIFn_MSK1_MSK);
-        LPC_CAN->IF1_MSK2 = CANIFn_MSK2_MXTD | CANIFn_MSK2_MDIR | BFN_PREP(mask >> 16, CANIFn_MSK2_MSK);
-    }
-    else {
-        // Mark message valid, Direction = TX, Set Identifier and mask everything
-        LPC_CAN->IF1_ARB2 = CANIFn_ARB2_MSGVAL | BFN_PREP(id << 2, CANIFn_ARB2_ID);
-        LPC_CAN->IF1_MSK2 = CANIFn_MSK2_MDIR | BFN_PREP(mask << 2, CANIFn_MSK2_MSK);
-    }
-    
-    // Use mask, single message object and set DLC
-    LPC_CAN->IF1_MCTRL = CANIFn_MCTRL_UMASK | CANIFn_MCTRL_EOB | CANIFn_MCTRL_RXIE | BFN_PREP(DLC_MAX, CANIFn_MCTRL_DLC);
+int can_filter(can_t *obj, uint32_t id, uint32_t mask, CANFormat format, int32_t handle) {
+    uint16_t i;
 
-    // Transfer all fields to message object
-    LPC_CAN->IF1_CMDMSK = CANIFn_CMDMSK_WR | CANIFn_CMDMSK_MASK | CANIFn_CMDMSK_ARB | CANIFn_CMDMSK_CTRL;
+    // Find first free message object
+    if(handle == 0) {
+        uint32_t msgval = LPC_CAN->MSGV1 | (LPC_CAN->MSGV2 << 16);
+        // Find first free messagebox
+        for(i = 0; i < 32; i++) {
+            if((msgval & (1 << i)) == 0) {
+                handle = i+1;
+                break;
+            }
+        }
+    }
     
-    // Start Transfer to given message number
-    LPC_CAN->IF1_CMDREQ = BFN_PREP(msgnum, CANIFn_CMDREQ_MN);
+    if(handle > 0 && handle < 32) {
+        if(format == CANExtended) {
+            // Mark message valid, Direction = TX, Extended Frame, Set Identifier and mask everything
+            LPC_CAN->IF1_ARB1 = BFN_PREP(id, CANIFn_ARB1_ID);
+            LPC_CAN->IF1_ARB2 = CANIFn_ARB2_MSGVAL | CANIFn_ARB2_XTD | BFN_PREP(id >> 16, CANIFn_ARB2_ID);
+            LPC_CAN->IF1_MSK1 = BFN_PREP(mask, CANIFn_MSK1_MSK);
+            LPC_CAN->IF1_MSK2 = CANIFn_MSK2_MXTD | CANIFn_MSK2_MDIR | BFN_PREP(mask >> 16, CANIFn_MSK2_MSK);
+        }
+        else {
+            // Mark message valid, Direction = TX, Set Identifier and mask everything
+            LPC_CAN->IF1_ARB2 = CANIFn_ARB2_MSGVAL | BFN_PREP(id << 2, CANIFn_ARB2_ID);
+            LPC_CAN->IF1_MSK2 = CANIFn_MSK2_MDIR | BFN_PREP(mask << 2, CANIFn_MSK2_MSK);
+        }
+        
+        // Use mask, single message object and set DLC
+        LPC_CAN->IF1_MCTRL = CANIFn_MCTRL_UMASK | CANIFn_MCTRL_EOB | CANIFn_MCTRL_RXIE | BFN_PREP(DLC_MAX, CANIFn_MCTRL_DLC);
+
+        // Transfer all fields to message object
+        LPC_CAN->IF1_CMDMSK = CANIFn_CMDMSK_WR | CANIFn_CMDMSK_MASK | CANIFn_CMDMSK_ARB | CANIFn_CMDMSK_CTRL;
+        
+        // Start Transfer to given message number
+        LPC_CAN->IF1_CMDREQ = BFN_PREP(handle, CANIFn_CMDREQ_MN);
+        
+        // Wait until transfer to message ram complete - TODO: maybe not block??
+        while( LPC_CAN->IF1_CMDREQ & CANIFn_CMDREQ_BUSY );    
+    }
     
-    // Wait until transfer to message ram complete - TODO: maybe not block??
-    while( LPC_CAN->IF1_CMDREQ & CANIFn_CMDREQ_BUSY );    
-    
-    return 0; // not implemented
+    return handle;
 }
 
 static inline void can_irq() {
@@ -214,23 +227,8 @@ int can_config_rxmsgobj(can_t *obj) {
         while( LPC_CAN->IF1_CMDREQ & CANIFn_CMDREQ_BUSY );
     }
     
-    // Mark message valid, Direction = RX, Don't care about anything else
-    LPC_CAN->IF1_ARB1 = 0;
-    LPC_CAN->IF1_ARB2 = CANIFn_ARB2_MSGVAL;
-    LPC_CAN->IF1_MSK1 = 0;    
-    LPC_CAN->IF1_MSK2 = 0;
-
-    // Use mask, single message object and set DLC
-    LPC_CAN->IF1_MCTRL = CANIFn_MCTRL_UMASK | CANIFn_MCTRL_EOB | CANIFn_MCTRL_RXIE | BFN_PREP(DLC_MAX, CANIFn_MCTRL_DLC);
-
-    // Transfer all fields to message object
-    LPC_CAN->IF1_CMDMSK = CANIFn_CMDMSK_WR | CANIFn_CMDMSK_MASK | CANIFn_CMDMSK_ARB | CANIFn_CMDMSK_CTRL; //CANIFn_CMDMSK_TXRQST
-    
-    // Start Transfer to given message number
-    LPC_CAN->IF1_CMDREQ = BFN_PREP(msgnum, CANIFn_CMDREQ_MN);
-    
-    // Wait until transfer to message ram complete - TODO: maybe not block??
-    while( LPC_CAN->IF1_CMDREQ & CANIFn_CMDREQ_BUSY );
+    // Accept all messages
+    can_filter(obj, 0, 0, CANStandard, 1);
     
     return 1;
 }
@@ -238,7 +236,7 @@ int can_config_rxmsgobj(can_t *obj) {
 
 void can_init(can_t *obj, PinName rd, PinName td) {
     // Enable power and clock
-      LPC_SYSCON->PRESETCTRL |= PRESETCTRL_CAN_RST_N;
+    LPC_SYSCON->PRESETCTRL |= PRESETCTRL_CAN_RST_N;
     LPC_SYSCON->SYSAHBCLKCTRL |= SYSAHBCLKCTRL_CAN;
     
     // Enable Initialization mode
@@ -279,7 +277,7 @@ int can_frequency(can_t *obj, int f) {
 }
 
 int can_write(can_t *obj, CAN_Message msg, int cc) {    
-    uint16_t msgnum = 2;
+    uint16_t msgnum = 0;
     
     // Make sure controller is enabled
     can_enable(obj);
@@ -324,14 +322,25 @@ int can_write(can_t *obj, CAN_Message msg, int cc) {
     return 1;
 }
 
-int can_read(can_t *obj, CAN_Message *msg) {
-    uint16_t msgnum = 1;
+int can_read(can_t *obj, CAN_Message *msg, int handle) {
+    uint16_t i;
     
     // Make sure controller is enabled
     can_enable(obj);
     
-    if (LPC_CAN->ND1 & (1 << (msgnum-1))) {
-
+    // Find first message object with new data
+    if(handle == 0) {
+        uint32_t newdata = LPC_CAN->ND1 | (LPC_CAN->ND2 << 16);
+        // Find first free messagebox
+        for(i = 0; i < 32; i++) {
+            if(newdata & (1 << i)) {
+                handle = i+1;
+                break;
+            }
+        }
+    }
+    
+    if(handle > 0 && handle < 32) {
         // Wait until message interface is free
         while( LPC_CAN->IF2_CMDREQ & CANIFn_CMDREQ_BUSY );
 
@@ -339,7 +348,7 @@ int can_read(can_t *obj, CAN_Message *msg) {
         LPC_CAN->IF2_CMDMSK = CANIFn_CMDMSK_RD | CANIFn_CMDMSK_MASK | CANIFn_CMDMSK_ARB | CANIFn_CMDMSK_CTRL | CANIFn_CMDMSK_CLRINTPND | CANIFn_CMDMSK_TXRQST | CANIFn_CMDMSK_DATA_A | CANIFn_CMDMSK_DATA_B;
         
         // Start Transfer from given message number
-        LPC_CAN->IF2_CMDREQ = BFN_PREP(msgnum, CANIFn_CMDREQ_MN);
+        LPC_CAN->IF2_CMDREQ = BFN_PREP(handle, CANIFn_CMDREQ_MN);
         
         // Wait until transfer to message ram complete
         while( LPC_CAN->IF2_CMDREQ & CANIFn_CMDREQ_BUSY );
@@ -376,6 +385,8 @@ int can_read(can_t *obj, CAN_Message *msg) {
 void can_reset(can_t *obj) {
     LPC_SYSCON->PRESETCTRL &= ~PRESETCTRL_CAN_RST_N;
     LPC_CAN->STAT = 0;
+    
+    can_config_rxmsgobj(obj);
 }
 
 unsigned char can_rderror(can_t *obj) {

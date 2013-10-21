@@ -136,7 +136,7 @@ public:
      *    0 if no message arrived,
      *    1 if message arrived
      */
-    int read(CANMessage &msg);
+    int read(CANMessage &msg, int handle = 0);
 
     /** Reset CAN interface.
      *
@@ -179,7 +179,7 @@ public:
      *    0 if mode change failed or unsupported,
      *    1 if mode change was successful     
      */
-    int filter(int mailbox, unsigned int id, unsigned int mask);    
+    int filter(unsigned int id, unsigned int mask, CANFormat format = CANStandard, int handle = 0);
     
     /** Returns number of read errors to detect read overflow errors.
      */
