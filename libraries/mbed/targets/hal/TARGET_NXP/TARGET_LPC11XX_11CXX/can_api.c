@@ -205,7 +205,6 @@ static unsigned int can_speed(unsigned int sclk, unsigned int cclk, unsigned cha
 
 int can_config_rxmsgobj(can_t *obj) {
     uint16_t i = 0;
-    uint16_t msgnum = 1;
 
     // Make sure the interface is available
     //while( LPC_CAN->IF1_CMDREQ & CANIFn_CMDREQ_BUSY );
