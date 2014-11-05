@@ -22,12 +22,27 @@ namespace mbed {
 I2C *I2C::_owner = NULL;
 
 I2C::I2C(PinName sda, PinName scl) : _i2c(), _hz(100000) {
+    // Automatically assign peripheral
+    obj->i2c = NULL;
+
     // The init function also set the frequency to 100000
     i2c_init(&_i2c, sda, scl);
 
     // Used to avoid unnecessary frequency updates
     _owner = this;
 }
+
+I2CX::I2CX(I2CName peripheral, PinName sda, PinName scl) : _i2c(), _hz(100000) {
+    // Force given peripheral (only for platforms with dynamic pin mapping)
+    obj->i2c = peripheral;
+
+    // The init function also set the frequency to 100000
+    i2c_init(&_i2c, sda, scl);
+
+    // Used to avoid unnecessary frequency updates
+    _owner = this;
+}
+ 
 
 void I2C::frequency(int hz) {
     _hz = hz;

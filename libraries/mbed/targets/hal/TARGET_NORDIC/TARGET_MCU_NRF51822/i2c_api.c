@@ -58,12 +58,11 @@ void twi_master_init(i2c_t *obj, PinName sda, PinName scl, int frequency)
 
 void i2c_init(i2c_t *obj, PinName sda, PinName scl)
 {
-    // determine the SPI to use
-    I2CName i2c_sda = (I2CName)pinmap_peripheral(sda, PinMap_I2C_SDA);
-    I2CName i2c_scl = (I2CName)pinmap_peripheral(scl, PinMap_I2C_SCL);
-    I2CName i2c     = (I2CName)pinmap_merge(i2c_sda, i2c_scl);
-    obj->i2c = (NRF_TWI_Type *)i2c;
-
+    // Default to I2C_0 if not specified
+    if((int)obj->i2c == NULL) {
+        obj->i2c = I2C_0;  
+    }
+    
     MBED_ASSERT((int)obj->i2c != NC);
 
     obj->scl               = scl;
